@@ -1,66 +1,116 @@
 package com.example.addon.modules;
 
-import com.example.addon.AddonTemplate;
-import meteordevelopment.meteorclient.events.render.Render3DEvent;
-import meteordevelopment.meteorclient.renderer.ShapeMode;
-import meteordevelopment.meteorclient.settings.ColorSetting;
-import meteordevelopment.meteorclient.settings.DoubleSetting;
-import meteordevelopment.meteorclient.settings.Setting;
-import meteordevelopment.meteorclient.settings.SettingGroup;
+import meteordevelopment.meteorclient.events.world.TickEvent;
+import meteordevelopment.meteorclient.settings.*;
+import meteordevelopment.meteorclient.systems.friends.Friends;
+import meteordevelopment.meteorclient.systems.modules.Category;
 import meteordevelopment.meteorclient.systems.modules.Module;
-import meteordevelopment.meteorclient.utils.render.color.Color;
-import meteordevelopment.meteorclient.utils.render.color.SettingColor;
+import meteordevelopment.meteorclient.utils.player.PlayerUtils;
 import meteordevelopment.orbit.EventHandler;
-import net.minecraft.core.BlockPos;
-import net.minecraft.world.phys.AABB;
+import net.minecraft.entity.player.PlayerEntity;
 
-public class ModuleExample extends Module {
-    private final SettingGroup sgGeneral = this.settings.getDefaultGroup();
-    private final SettingGroup sgRender = this.settings.createGroup("Render");
+public class TargetStrafe extends Module {
+    private final SettingGroup sgGeneral = settings.getDefaultGroup();
 
-    /**
-     * Example setting.
-     * The {@code name} parameter should be in kebab-case.
-     * If you want to access the setting from another class, simply make the setting {@code public}, and use
-     * {@link meteordevelopment.meteorclient.systems.modules.Modules#get(Class)} to access the {@link Module} object.
-     */
-    private final Setting<Double> scale = sgGeneral.add(new DoubleSetting.Builder()
-        .name("scale")
-        .description("The size of the marker.")
-        .defaultValue(2.0d)
-        .range(0.5d, 10.0d)
-        .build()
+    private final Setting<Double> range = sgGeneral.add(new DoubleSetting.Builder()
+            .name("range")
+            .description("Дистанция поиска игрока.")
+            .defaultValue(15.0)
+            .min(1.0)
+            .sliderMax(30.0)
+            .build()
     );
 
-    private final Setting<SettingColor> color = sgRender.add(new ColorSetting.Builder()
-        .name("color")
-        .description("The color of the marker.")
-        .defaultValue(Color.MAGENTA)
-        .build()
+    private final Setting<Double> strafeRadius = sgGeneral.add(new DoubleSetting.Builder()
+            .name("strafe-radius")
+            .description("Дистанция кружения вокруг врага.")
+            .defaultValue(2.5)
+            .min(0.5)
+            .sliderMax(6.0)
+            .build()
     );
 
-    /**
-     * The {@code name} parameter should be in kebab-case.
-     */
-    public ModuleExample() {
-        super(AddonTemplate.CATEGORY, "world-origin", "An example module that highlights the center of the world.");
+    private final Setting<Boolean> autoJump = sgGeneral.add(new BoolSetting.Builder()
+            .name("auto-jump")
+            .description("Прыгать во время стрейфа (для критов).")
+            .defaultValue(true)
+            .build()
+    );
+
+    private int direction = 1;
+
+    public TargetStrafe() {
+        super(new Category("HvH"), "target-strafe", "Липнет к врагу и кружится вокруг него.");
     }
 
-    /**
-     * Example event handling method.
-     * Requires {@link AddonTemplate#getPackage()} to be setup correctly, otherwise the game will crash whenever the module is enabled.
-     */
     @EventHandler
-    private void onRender3d(Render3DEvent event) {
-        // Create & expand the marker object
-        AABB marker = new AABB(BlockPos.ZERO);
-        marker = marker.expandTowards(
-            scale.get() * marker.getXsize(),
-            scale.get() * marker.getYsize(),
-            scale.get() * marker.getZsize()
-        );
+    private void onTick(TickEvent.Pre event) {
+        if (mc.player == null || mc.world == null) return;
 
-        // Render the marker based on the color setting
-        event.renderer.box(marker, color.get(), color.get(), ShapeMode.Both, 0);
+        PlayerEntity target = getClosestPlayer();
+
+        if (target != null) {
+            PlayerUtils.turnToEntity(target);
+
+            if (mc.player.horizontalCollision) {
+                direction *= -1;
+            }
+
+            double distance = mc.player.distanceTo(target);
+
+            if (distance > strafeRadius.get() + 0.5) {
+                mc.options.forwardKey.setPressed(true);
+                mc.options.leftKey.setPressed(false);
+                mc.options.rightKey.setPressed(false);
+            } else {
+                mc.options.forwardKey.setPressed(distance > strafeRadius.get());
+                
+                if (direction == 1) {
+                    mc.options.leftKey.setPressed(true);
+                    mc.options.rightKey.setPressed(false);
+                } else {
+                    mc.options.leftKey.setPressed(false);
+                    mc.options.rightKey.setPressed(true);
+                }
+            }
+
+            if (autoJump.get() && mc.player.isOnGround()) {
+                mc.player.jump();
+            }
+
+        } else {
+            resetKeys();
+        }
+    }
+
+    private PlayerEntity getClosestPlayer() {
+        PlayerEntity closest = null;
+        double closestDistance = range.get();
+
+        for (PlayerEntity player : mc.world.getPlayers()) {
+            if (player == mc.player) continue;
+            if (player.isDead() || player.getHealth() <= 0) continue;
+            if (!Friends.get().shouldAttack(player)) continue;
+
+            double distance = mc.player.distanceTo(player);
+            if (distance < closestDistance) {
+                closestDistance = distance;
+                closest = player;
+            }
+        }
+
+        return closest;
+    }
+
+    private void resetKeys() {
+        if (mc.options == null) return;
+        mc.options.forwardKey.setPressed(false);
+        mc.options.leftKey.setPressed(false);
+        mc.options.rightKey.setPressed(false);
+    }
+
+    @Override
+    public void onDeactivate() {
+        resetKeys();
     }
 }
