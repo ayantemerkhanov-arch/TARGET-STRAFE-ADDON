@@ -7,7 +7,7 @@ import meteordevelopment.meteorclient.systems.modules.Category;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.utils.player.PlayerUtils;
 import meteordevelopment.orbit.EventHandler;
-import net.minecraft.world.entity.player.Player;
+import net.minecraft.entity.player.PlayerEntity;
 
 public class TargetStrafe extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
@@ -45,9 +45,9 @@ public class TargetStrafe extends Module {
 
     @EventHandler
     private void onTick(TickEvent.Pre event) {
-        if (mc.player == null || mc.level == null) return;
+        if (mc.player == null || mc.world == null) return;
 
-        Player target = getClosestPlayer();
+        PlayerEntity target = getClosestPlayer();
 
         if (target != null) {
             PlayerUtils.turnToEntity(target);
@@ -59,23 +59,23 @@ public class TargetStrafe extends Module {
             double distance = mc.player.distanceTo(target);
 
             if (distance > strafeRadius.get() + 0.5) {
-                mc.options.keyUp.setPressed(true);
-                mc.options.keyLeft.setPressed(false);
-                mc.options.keyRight.setPressed(false);
+                mc.options.forwardKey.setPressed(true);
+                mc.options.leftKey.setPressed(false);
+                mc.options.rightKey.setPressed(false);
             } else {
-                mc.options.keyUp.setPressed(distance > strafeRadius.get());
+                mc.options.forwardKey.setPressed(distance > strafeRadius.get());
                 
                 if (direction == 1) {
-                    mc.options.keyLeft.setPressed(true);
-                    mc.options.keyRight.setPressed(false);
+                    mc.options.leftKey.setPressed(true);
+                    mc.options.rightKey.setPressed(false);
                 } else {
-                    mc.options.keyLeft.setPressed(false);
-                    mc.options.keyRight.setPressed(true);
+                    mc.options.leftKey.setPressed(false);
+                    mc.options.rightKey.setPressed(true);
                 }
             }
 
-            if (autoJump.get() && mc.player.onGround()) {
-                mc.player.jumpFromGround();
+            if (autoJump.get() && mc.player.isOnGround()) {
+                mc.player.jump();
             }
 
         } else {
@@ -83,13 +83,13 @@ public class TargetStrafe extends Module {
         }
     }
 
-    private Player getClosestPlayer() {
-        Player closest = null;
+    private PlayerEntity getClosestPlayer() {
+        PlayerEntity closest = null;
         double closestDistance = range.get();
 
-        for (Player player : mc.level.players()) {
+        for (PlayerEntity player : mc.world.getPlayers()) {
             if (player == mc.player) continue;
-            if (player.isDeadOrDying()) continue;
+            if (player.isDead() || player.getHealth() <= 0) continue;
             if (!Friends.get().shouldAttack(player)) continue;
 
             double distance = mc.player.distanceTo(player);
@@ -104,9 +104,9 @@ public class TargetStrafe extends Module {
 
     private void resetKeys() {
         if (mc.options == null) return;
-        mc.options.keyUp.setPressed(false);
-        mc.options.keyLeft.setPressed(false);
-        mc.options.keyRight.setPressed(false);
+        mc.options.forwardKey.setPressed(false);
+        mc.options.leftKey.setPressed(false);
+        mc.options.rightKey.setPressed(false);
     }
 
     @Override
