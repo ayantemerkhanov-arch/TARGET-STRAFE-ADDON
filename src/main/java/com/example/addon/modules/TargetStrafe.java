@@ -5,9 +5,8 @@ import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.friends.Friends;
 import meteordevelopment.meteorclient.systems.modules.Category;
 import meteordevelopment.meteorclient.systems.modules.Module;
-import meteordevelopment.meteorclient.utils.player.PlayerUtils;
+import meteordevelopment.meteorclient.utils.player.Rotations;
 import meteordevelopment.orbit.EventHandler;
-import net.minecraft.entity.Entity;
 import net.minecraft.entity.player.PlayerEntity;
 
 public class TargetStrafe extends Module {
@@ -24,7 +23,7 @@ public class TargetStrafe extends Module {
 
     private final Setting<Double> strafeRadius = sgGeneral.add(new DoubleSetting.Builder()
             .name("strafe-radius")
-            .description("Дистанция кружения вокруг врага.")
+            .description("Дистанция до врага.")
             .defaultValue(2.5)
             .min(0.5)
             .sliderMax(6.0)
@@ -32,7 +31,7 @@ public class TargetStrafe extends Module {
     );
 
     public TargetStrafe() {
-        super(new Category("HvH"), "target-strafe", "Липнет к врагу и кружится вокруг него.");
+        super(new Category("HvH"), "target-strafe", "Автоматически наводит и следит за ближайшим игроком.");
     }
 
     @EventHandler
@@ -42,19 +41,8 @@ public class TargetStrafe extends Module {
         PlayerEntity target = getClosestPlayer();
 
         if (target != null) {
-            // Наведение на игрока
-            PlayerUtils.turnToEntity((Entity) target);
-
-            double distance = mc.player.distanceTo(target);
-
-            // Если мы слишком далеко — идем к врагу
-            if (distance > strafeRadius.get()) {
-                mc.player.input.movementForward = 1.0f;
-            } else {
-                // Если подошли вплоть до радиуса — кружимся вокруг него (стрейф)
-                mc.player.input.movementForward = 0.2f;
-                mc.player.input.movementSideways = 1.0f;
-            }
+            // Плавное/точное вращение взгляда на цель через Meteor API
+            Rotations.rotate(Rotations.getYaw(target), Rotations.getPitch(target));
         }
     }
 
